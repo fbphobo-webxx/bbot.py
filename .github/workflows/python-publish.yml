@@ -1,0 +1,129 @@
+# import telebot
+import requests
+
+# Your Configuration
+API_TOKEN = '8800062443:AAEhoe2RvhTrU-jGpRrNc6gs9anBjn4Z0_A'
+bot = telebot.TeleBot(API_TOKEN)
+
+@bot.message_handler(commands=['like'])
+def handle_like(message):
+    # Split the command (e.g., /like ind 5513136279)
+    args = message.text.split()
+    
+    if len(args) < 3:
+        bot.reply_to(message, "❌ **Usage:** `/like {region} {uid}`\nExample: `/like ind 5513136279`", parse_mode='Markdown')
+        return
+
+    region = args[1]
+    uid = args[2]
+    
+    # Notify user processing
+    sent_msg = bot.reply_to(message, "⏳ *Processing your request...*", parse_mode='Markdown')
+
+    # API Call
+    api_url = f"https://najmi-ob53-like-api-vvkb.vercel.app/like?uid={uid}&server_name={region}&key=NJM"
+    
+    try:
+        response = requests.get(api_url)
+        data = response.json()
+
+        # Mapping the API response to your template
+        name = data.get('PlayerNickname', 'N/A')
+        likes_before = data.get('LikesbeforeCommand', '0')
+        likes_given = data.get('LikesGivenByAPI', '0')
+        likes_after = data.get('LikesafterCommand', '0')
+        remaining = data.get('remains', 'N/A')
+
+        template = (
+            "╔════════◇◆◇════════╗\n"
+            "    🎉 LIKE SUCCESSFULLY 👍 \n"
+            "╚════════◇◆◇════════╝\n"
+            f"👑 Name: {name}\n"
+            f"🕹️ UID: {uid}\n"
+            f"🌐 Region: {region.upper()}\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            f"❤️ Likes Before: {likes_before}\n"
+            f"🩵 Likes Given: {likes_given}\n"
+            f"💚 Likes after: {likes_after}\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📊 Remaining Requests: {remaining}"
+        )
+        
+        bot.edit_message_text(template, chat_id=message.chat.id, message_id=sent_msg.message_id)
+
+    except Exception as e:
+        bot.edit_message_text(f"❌ **Error Connection to API**\n`{str(e)}`", 
+                              chat_id=message.chat.id, message_id=sent_msg.message_id, parse_mode='Markdown')
+
+if __name__ == "__main__":
+    print("Bot is now online...")
+    bot.infinity_pollingThis workflow will upload a Python Package to PyPI when a release is created
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
+
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Upload Python Package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  release-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Build release distributions
+        run: |
+          # NOTE: put your own distribution build steps here.
+          python -m pip install build
+          python -m build
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+
+  pypi-publish:
+    runs-on: ubuntu-latest
+    needs:
+      - release-build
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
+
+    # Dedicated environments with protections for publishing are strongly recommended.
+    # For more information, see: https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment#deployment-protection-rules
+    environment:
+      name: pypi
+      # OPTIONAL: uncomment and update to include your PyPI project URL in the deployment status:
+      # url: https://pypi.org/p/YOURPROJECT
+      #
+      # ALTERNATIVE: if your GitHub Release name is the PyPI project version string
+      # ALTERNATIVE: exactly, uncomment the following line instead:
+      # url: https://pypi.org/project/YOURPROJECT/${{ github.event.release.name }}
+
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+
+      - name: Publish release distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
